@@ -1,18 +1,11 @@
 name: Build and Deploy Fun7
 
 on:
-  # Trigger on push to main or dev branches
+  # Trigger build on push to any branch
   push:
-    branches:
-      - main
-      - dev
 
-  # Trigger when a pull request is merged to main or dev branches
+  # Trigger pull request builds for any branch
   pull_request:
-    branches:
-      - main
-      - dev
-    types: [closed]
 
   # Trigger on GitHub release creation
   release:
@@ -20,7 +13,7 @@ on:
 
 jobs:
   build:
-    if: github.event.pull_request.merged == true || github.event_name == 'push' || github.event_name == 'release'
+    # Always trigger build on push, pull request, or release
     runs-on: ubuntu-latest
 
     steps:
@@ -50,13 +43,17 @@ jobs:
           docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:dev .
         elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
           # Tag image with 'latest' for the main branch
-          docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/connectivity-test:latest .
+          docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:latest .
         elif [[ "${{ github.event_name }}" == "release" ]]; then
           # Tag image with release version (e.g., v1.0.0)
-          docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/connectivity-test:${{ github.event.release.tag_name }} .
+          docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:${{ github.event.release.tag_name }} .
+        else
+          # For other branches, use the branch name as the tag
+          BRANCH_NAME=$(echo "${{ github.ref }}" | sed 's/refs\/heads\///')
+          docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:${BRANCH_NAME} .
         fi
 
-    # Push Docker image to GCR/GAR
+    # Push Docker image to GAR
     - name: Push Docker image to GAR
       run: |
         if [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
@@ -68,8 +65,15 @@ jobs:
         elif [[ "${{ github.event_name }}" == "release" ]]; then
           echo "TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
           docker push ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:${{ github.event.release.tag_name }}
+        else
+          # Push for other branches
+          BRANCH_NAME=$(echo "${{ github.ref }}" | sed 's/refs\/heads\///')
+          echo "TAG=${BRANCH_NAME}" >> $GITHUB_ENV
+          docker push ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:${BRANCH_NAME}
         fi
+
   deploy:
+    # Only trigger deployment if the push is to main or if it's a release event
     needs: build
     if: github.ref == 'refs/heads/main' || github.event_name == 'release'
     runs-on: ubuntu-latest
@@ -78,6 +82,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
+    # Set up Terraform
     - name: Set up Terraform
       uses: hashicorp/setup-terraform@v2
       with:
@@ -88,12 +93,14 @@ jobs:
         cd terraform
         terraform init
 
+    # Deploy with Terraform
     - name: Terraform Apply
       run: |
         cd terraform
         terraform apply -auto-approve
       env:
-        image_tag: ${{ secrets.TAG }}
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GCP_KEY }}
+        image_tag: ${{ env.TAG }}           # Use the tag set during the build
         project_id: ${{ secrets.GCP_PROJECT_ID }}
         region: ${{ secrets.REGION }}
         image_name: ${{ secrets.IMAGE_NAME }}
