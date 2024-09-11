@@ -40,7 +40,7 @@ jobs:
     # Configure Docker to use the gcloud CLI as a credential helper
     - name: Set up Docker to use gcloud as a credential helper
       run: |
-        gcloud auth configure-docker
+        gcloud auth configure-docker europe-west3-docker.pkg.dev
 
     # Build and tag Docker image
     - name: Build Docker image
