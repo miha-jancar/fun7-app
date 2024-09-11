@@ -40,20 +40,20 @@ jobs:
     # Configure Docker to use the gcloud CLI as a credential helper
     - name: Set up Docker to use gcloud as a credential helper
       run: |
-        gcloud auth configure-docker {{ secrets.REGION }}-docker.pkg.dev
+        gcloud auth configure-docker ${{ secrets.REGION }}-docker.pkg.dev
 
     # Build and tag Docker image
     - name: Build Docker image
       run: |
         if [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
           # Tag image with 'dev' for the dev branch
-          docker build -t {{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:dev .
+          docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:dev .
         elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
           # Tag image with 'latest' for the main branch
-          docker build -t {{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/connectivity-test:latest .
+          docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/connectivity-test:latest .
         elif [[ "${{ github.event_name }}" == "release" ]]; then
           # Tag image with release version (e.g., v1.0.0)
-          docker build -t {{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/connectivity-test:${{ github.event.release.tag_name }} .
+          docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/connectivity-test:${{ github.event.release.tag_name }} .
         fi
 
     # Push Docker image to GCR/GAR
@@ -61,13 +61,13 @@ jobs:
       run: |
         if [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
           echo "TAG=dev" >> $GITHUB_ENV
-          docker push {{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:dev
+          docker push ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:dev
         elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
           echo "TAG=latest" >> $GITHUB_ENV
-          docker push {{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:latest
+          docker push ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:latest
         elif [[ "${{ github.event_name }}" == "release" ]]; then
           echo "TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
-          docker push {{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:${{ github.event.release.tag_name }}
+          docker push ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:${{ github.event.release.tag_name }}
         fi
   deploy:
     needs: build
@@ -97,3 +97,4 @@ jobs:
         project_id: ${{ secrets.GCP_PROJECT_ID }}
         region: ${{ secrets.REGION }}
         image_name: ${{ secrets.IMAGE_NAME }}
+
