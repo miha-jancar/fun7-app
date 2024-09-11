@@ -1,0 +1,68 @@
+name: Build and Push to GAR
+
+on:
+  # Trigger on push to main or dev branches
+  push:
+    branches:
+      - main    
+      - dev
+
+  # Trigger when a pull request is merged to main or dev branches
+  pull_request:
+    branches:
+      - main
+      - dev
+    types: [closed]
+
+  # Trigger on GitHub release creation
+  release:
+    types: [published]
+
+jobs:
+  build:
+    if: github.event.pull_request.merged == true || github.event_name == 'push' || github.event_name == 'release'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    # Set up Docker Buildx
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    # Authenticate to Google Cloud
+    - name: Authenticate to GCP
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_KEY }}
+
+    # Configure Docker to use the gcloud CLI as a credential helper
+    - name: Set up Docker to use gcloud as a credential helper
+      run: |
+        gcloud auth configure-docker
+
+    # Build and tag Docker image
+    - name: Build Docker image
+      run: |
+        if [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
+          # Tag image with 'dev' for the dev branch
+          docker build -t europe-west3-docker.pkg.dev/velvety-arc-435306-v6/fun7/connectivity-test:dev .
+        elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          # Tag image with 'latest' for the main branch
+          docker build -t europe-west3-docker.pkg.dev/velvety-arc-435306-v6/fun7/connectivity-test:latest .
+        elif [[ "${{ github.event_name }}" == "release" ]]; then
+          # Tag image with release version (e.g., v1.0.0)
+          docker build -t europe-west3-docker.pkg.dev/velvety-arc-435306-v6/fun7/connectivity-test:${{ github.event.release.tag_name }} .
+        fi
+
+    # Push Docker image to GCR/GAR
+    - name: Push Docker image to GAR
+      run: |
+        if [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
+          docker push europe-west3-docker.pkg.dev/velvety-arc-435306-v6/fun7/connectivity-test:dev
+        elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          docker push europe-west3-docker.pkg.dev/velvety-arc-435306-v6/fun7/connectivity-test:latest
+        elif [[ "${{ github.event_name }}" == "release" ]]; then
+          docker push europe-west3-docker.pkg.dev/velvety-arc-435306-v6/fun7/connectivity-test:${{ github.event.release.tag_name }}
+        fi
