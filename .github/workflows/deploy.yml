@@ -88,12 +88,18 @@ jobs:
       with:
         terraform_version: 1.5.0
 
+    - name: Set up Google Cloud credentials for Terraform
+      run: |
+        echo "${{ secrets.GCP_KEY }}" > ${HOME}/gcloud-key.json
+      env:
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GCP_KEY }}
+
     - name: Terraform Init
       run: |
         cd terraform
         terraform init
       env:
-        GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GCP_KEY }}
+        GOOGLE_APPLICATION_CREDENTIALS: ${HOME}/gcloud-key.json
 
     # Deploy with Terraform
     - name: Terraform Apply
@@ -101,7 +107,7 @@ jobs:
         cd terraform
         terraform apply -auto-approve
       env:
-        GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GCP_KEY }}
+        GOOGLE_APPLICATION_CREDENTIALS: ${HOME}/gcloud-key.json
         image_tag: ${{ env.TAG }}           # Use the tag set during the build
         project_id: ${{ secrets.GCP_PROJECT_ID }}
         region: ${{ secrets.REGION }}
