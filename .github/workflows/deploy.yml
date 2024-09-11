@@ -92,6 +92,8 @@ jobs:
       run: |
         cd terraform
         terraform init
+      env:
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GCP_KEY }}
 
     # Deploy with Terraform
     - name: Terraform Apply
