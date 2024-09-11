@@ -1,10 +1,10 @@
-name: Build and Push to GAR
+name: Build and Deploy Fun7
 
 on:
   # Trigger on push to main or dev branches
   push:
     branches:
-      - main    
+      - main
       - dev
 
   # Trigger when a pull request is merged to main or dev branches
@@ -40,29 +40,61 @@ jobs:
     # Configure Docker to use the gcloud CLI as a credential helper
     - name: Set up Docker to use gcloud as a credential helper
       run: |
-        gcloud auth configure-docker
+        gcloud auth configure-docker ${{ secrets.REGION }}-docker.pkg.dev
 
     # Build and tag Docker image
     - name: Build Docker image
       run: |
         if [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
           # Tag image with 'dev' for the dev branch
-          docker build -t europe-west3-docker.pkg.dev/velvety-arc-435306-v6/fun7/connectivity-test:dev .
+          docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:dev .
         elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
           # Tag image with 'latest' for the main branch
-          docker build -t europe-west3-docker.pkg.dev/velvety-arc-435306-v6/fun7/connectivity-test:latest .
+          docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/connectivity-test:latest .
         elif [[ "${{ github.event_name }}" == "release" ]]; then
           # Tag image with release version (e.g., v1.0.0)
-          docker build -t europe-west3-docker.pkg.dev/velvety-arc-435306-v6/fun7/connectivity-test:${{ github.event.release.tag_name }} .
+          docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/connectivity-test:${{ github.event.release.tag_name }} .
         fi
 
     # Push Docker image to GCR/GAR
     - name: Push Docker image to GAR
       run: |
         if [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
-          docker push europe-west3-docker.pkg.dev/velvety-arc-435306-v6/fun7/connectivity-test:dev
+          echo "TAG=dev" >> $GITHUB_ENV
+          docker push ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:dev
         elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-          docker push europe-west3-docker.pkg.dev/velvety-arc-435306-v6/fun7/connectivity-test:latest
+          echo "TAG=latest" >> $GITHUB_ENV
+          docker push ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:latest
         elif [[ "${{ github.event_name }}" == "release" ]]; then
-          docker push europe-west3-docker.pkg.dev/velvety-arc-435306-v6/fun7/connectivity-test:${{ github.event.release.tag_name }}
+          echo "TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
+          docker push ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:${{ github.event.release.tag_name }}
         fi
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' || github.event_name == 'release'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.5.0
+
+    - name: Terraform Init
+      run: |
+        cd terraform
+        terraform init
+
+    - name: Terraform Apply
+      run: |
+        cd terraform
+        terraform apply -auto-approve
+      env:
+        image_tag: ${{ secrets.TAG }}
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+        region: ${{ secrets.REGION }}
+        image_name: ${{ secrets.IMAGE_NAME }}
+
