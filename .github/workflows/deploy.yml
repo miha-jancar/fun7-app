@@ -70,7 +70,7 @@ jobs:
           docker push {{ vars.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ vars.IMAGE_NAME }}:${{ github.event.release.tag_name }}
         fi
   deploy:
-    needs: build_and_push
+    needs: build
     if: github.ref == 'refs/heads/main' || github.event_name == 'release'
     runs-on: ubuntu-latest
 
