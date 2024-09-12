@@ -3,17 +3,13 @@ name: Build and Deploy Fun7
 on:
   # Trigger build on push to any branch
   push:
-
-  # Trigger pull request builds for any branch
-  pull_request:
-
+  
   # Trigger on GitHub release creation
   release:
     types: [published]
 
 jobs:
   build:
-    # Always trigger build on push, pull request, or release
     runs-on: ubuntu-latest
 
     steps:
@@ -38,44 +34,26 @@ jobs:
     # Build and tag Docker image
     - name: Build Docker image
       run: |
-        if [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
-          # Tag image with 'dev' for the dev branch
-          docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:dev .
-        elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-          # Tag image with 'latest' for the main branch
-          docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:latest .
-        elif [[ "${{ github.event_name }}" == "release" ]]; then
+        COMMIT_HASH=$(git rev-parse --short HEAD)
+        if [[ "${{ github.event_name }}" == "release" ]]; then
           # Tag image with release version (e.g., v1.0.0)
           docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:${{ github.event.release.tag_name }} .
+          echo "TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
         else
-          # For other branches, use the branch name as the tag
-          BRANCH_NAME=$(echo "${{ github.ref }}" | sed 's/refs\/heads\///')
-          docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:${BRANCH_NAME} .
+          # Tag image with commit hash for all other branches
+          docker build -t ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:${COMMIT_HASH} .
+          echo "TAG=${COMMIT_HASH}" >> $GITHUB_ENV
         fi
 
     # Push Docker image to GAR
     - name: Push Docker image to GAR
       run: |
-        if [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
-          echo "TAG=dev" >> $GITHUB_ENV
-          docker push ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:dev
-        elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-          echo "TAG=latest" >> $GITHUB_ENV
-          docker push ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:latest
-        elif [[ "${{ github.event_name }}" == "release" ]]; then
-          echo "TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
-          docker push ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:${{ github.event.release.tag_name }}
-        else
-          # Push for other branches
-          BRANCH_NAME=$(echo "${{ github.ref }}" | sed 's/refs\/heads\///')
-          echo "TAG=${BRANCH_NAME}" >> $GITHUB_ENV
-          docker push ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:${BRANCH_NAME}
-        fi
+        docker push ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:${{ env.TAG }}
+
     outputs:
       tag: ${{ env.TAG }}
 
   deploy:
-    # Only trigger deployment if the push is to main or if it's a release event
     needs: build
     if: github.ref == 'refs/heads/main' || github.event_name == 'release'
     runs-on: ubuntu-latest
@@ -96,7 +74,6 @@ jobs:
       with:
         terraform_version: 1.5.0
 
-
     - name: Terraform Init
       run: |
         cd terraform
@@ -108,7 +85,7 @@ jobs:
         cd terraform
         terraform apply -auto-approve
       env:
-        TF_VAR_image_tag:  ${{ needs.build.outputs.tag }} 
+        TF_VAR_image_tag:  ${{ needs.build.outputs.tag }}
         TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
         TF_VAR_region: ${{ secrets.REGION }}
         TF_VAR_image_name: ${{ secrets.IMAGE_NAME }}
