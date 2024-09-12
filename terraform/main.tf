@@ -23,43 +23,36 @@ resource "google_project_service" "cloud_build" {
 }
 
 # Cloud Run Service
-resource "google_cloud_run_service" "cloudrun_service" {
+resource "google_cloud_run_v2_service" "cloudrun_service" {
   name     = var.service_name
   location = var.region
 
   template {
-    spec {
-      containers {
-        image = "gcr.io/${var.project_id}/${var.image_name}:${var.image_tag}"
+    containers {
+      image = "gcr.io/${var.project_id}/${var.image_name}:${var.image_tag}"
         
-        # Set resource limits
-        resources {
-          limits = {
-            cpu    = "1"     # 1 CPU core
-            memory = "128Mi" # 128 MB memory
-          }
+      # Set resource limits
+      resources {
+        limits = {
+          cpu    = "1"     # 1 CPU core
+          memory = "128Mi" # 128 MB memory
         }
       }
+    }
 
-      # Scale based on CPU utilization
-      scaling {
-        min_instance_count = var.min_instances
-        max_instance_count = var.max_instances
-        target_cpu_utilization = var.target_cpu_utilization
-      }
+    # Scale based on CPU utilization
+    scaling {
+      min_instance_count = var.min_instances
+      max_instance_count = var.max_instances
     }
   }
 
-  traffic {
-    percent         = 100
-    latest_revision = true
-  }
 }
 
 # Allow unauthenticated access (optional)
 resource "google_cloud_run_service_iam_policy" "noauth" {
-  location    = google_cloud_run_service.cloudrun_service.location
-  service     = google_cloud_run_service.cloudrun_service.name
+  location    = google_cloud_run_v2_service.cloudrun_service.location
+  service     = google_cloud_run_v2_service.cloudrun_service.name
   policy_data = data.google_iam_policy.noauth.policy_data
 }
 
