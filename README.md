@@ -9,7 +9,7 @@ A backend service for the Fun7 mobile game that checks server latency and helps 
 - Containerization: Docker
 - Infrastructure: Google Cloud (Cloud Run/GKE)
 - IaC: Terraform
-- Authentication: Since service is publicly exposed I've added authentication with API Key. For more sufisticated method like "JWT Token" 
+- Authentication: Since service is publicly exposed I've added authentication with API Key. For more sufisticated authentication I would rather implement Oauth approach 
 
 ## How to Build and Run Locally
 ```bash
