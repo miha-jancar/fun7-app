@@ -5,10 +5,7 @@ import time
 import logging
 from prometheus_client import Summary, Counter, generate_latest, CONTENT_TYPE_LATEST
 from threading import Thread
-from dotenv import load_dotenv
 
-# Load environment variables from the .env file (for local development)
-load_dotenv()
 
 # Initialize the Flask application for the main app
 app = Flask(__name__)
