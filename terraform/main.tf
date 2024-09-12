@@ -29,6 +29,10 @@ resource "google_cloud_run_v2_service" "cloudrun_service" {
       ports {
         container_port = 5000
       }        
+      env {
+        name = "API_KEY"
+        value = var.api_key
+      }
       # Set resource limits
       resources {
         limits = {

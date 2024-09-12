@@ -1,24 +1,51 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, abort
+import os
 import requests
 import time
 import logging
 from prometheus_client import Summary, Counter, generate_latest, CONTENT_TYPE_LATEST
+from threading import Thread
+from dotenv import load_dotenv
 
-# Initialize the Flask application
+# Load environment variables from the .env file (for local development)
+load_dotenv()
+
+# Initialize the Flask application for the main app
 app = Flask(__name__)
+
+# Separate Flask app for Prometheus metrics
+metrics_app = Flask('metrics_app')
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,  # Log level
-    format='%(asctime)s [%(levelname)s] %(message)s',  # Log format
-    handlers=[
-        logging.StreamHandler()  # Logs to standard output (stdout)
-    ]
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[logging.StreamHandler()]
 )
 
 # Prometheus metrics
 REQUEST_LATENCY = Summary('request_latency_seconds', 'Latency of HTTP requests in seconds')
 REQUEST_COUNT = Counter('request_count', 'Total number of HTTP requests')
+
+# Load API Key from environment variables (or fallback to a default value if not set)
+API_KEY = os.getenv('API_KEY')
+
+def check_api_key(api_key):
+    """
+    Check if the provided API key is valid.
+    """
+    return api_key == API_KEY
+
+def require_api_key(func):
+    """
+    Decorator that requires a valid API key in the request headers.
+    """
+    def decorated_function(*args, **kwargs):
+        api_key = request.headers.get('x-api-key')
+        if not api_key or not check_api_key(api_key):
+            abort(401, description="Unauthorized: Invalid or missing API key")
+        return func(*args, **kwargs)
+    return decorated_function
 
 def measure_latency(endpoint):
     """
@@ -37,6 +64,7 @@ def measure_latency(endpoint):
         return float('inf')  # return infinity if the request fails
 
 @app.route('/test-endpoints', methods=['POST'])
+@require_api_key  # Require API key for this endpoint
 @REQUEST_LATENCY.time()  # Track latency for this endpoint
 def test_endpoints():
     """
@@ -67,16 +95,27 @@ def test_endpoints():
         'latencies': latencies
     })
 
-@app.route('/metrics')
+@metrics_app.route('/metrics')
+@require_api_key  # Require API key for the metrics endpoint
 def metrics():
     """
-    Expose Prometheus metrics on the same port.
+    Expose Prometheus metrics on a separate port.
     """
     return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
 
+def run_metrics_server():
+    """
+    Run the Prometheus metrics Flask app on a separate thread and port.
+    """
+    metrics_app.run(host='0.0.0.0', port=8000)  # Expose metrics on port 8000
+
 if __name__ == '__main__':
+    # Start the Prometheus metrics server on a separate thread
+    metrics_thread = Thread(target=run_metrics_server)
+    metrics_thread.start()
+
     # Log that the application is starting
-    logging.info("Starting Flask app and serving Prometheus metrics on the same port...")
+    logging.info("Starting Flask app...")
 
     # Run Flask server (host 0.0.0.0 to make it accessible outside Docker)
     app.run(host='0.0.0.0', port=5000)
