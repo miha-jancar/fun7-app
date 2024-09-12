@@ -17,11 +17,6 @@ resource "google_project_service" "cloud_run" {
   service = "run.googleapis.com"
 }
 
-resource "google_project_service" "cloud_build" {
-  project = var.project_id
-  service = "cloudbuild.googleapis.com"
-}
-
 # Cloud Run Service
 resource "google_cloud_run_v2_service" "cloudrun_service" {
   name     = var.service_name
@@ -29,7 +24,7 @@ resource "google_cloud_run_v2_service" "cloudrun_service" {
 
   template {
     containers {
-      image = "gcr.io/${var.project_id}/${var.image_name}:${var.image_tag}"
+      image = "${var.region}-docker.pkg.dev/${var.project_id}/fun7/${var.image_name}:${var.image_tag}"
         
       # Set resource limits
       resources {
