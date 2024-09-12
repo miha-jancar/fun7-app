@@ -71,6 +71,8 @@ jobs:
           echo "TAG=${BRANCH_NAME}" >> $GITHUB_ENV
           docker push ${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fun7/${{ secrets.IMAGE_NAME }}:${BRANCH_NAME}
         fi
+    outputs:
+      tag: ${{ env.TAG }}
 
   deploy:
     # Only trigger deployment if the push is to main or if it's a release event
@@ -106,7 +108,7 @@ jobs:
         cd terraform
         terraform apply -auto-approve
       env:
-        TF_VAR_image_tag: "latest" #${{ env.TAG }} 
+        TF_VAR_image_tag:  ${{ needs.build.outputs.tag }} 
         TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
         TF_VAR_region: ${{ secrets.REGION }}
         TF_VAR_image_name: ${{ secrets.IMAGE_NAME }}

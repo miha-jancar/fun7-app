@@ -30,7 +30,7 @@ resource "google_cloud_run_v2_service" "cloudrun_service" {
       resources {
         limits = {
           cpu    = "1"     # 1 CPU core
-          memory = "128Mi" # 128 MB memory
+          memory = "512Mi" # 512 MB memory
         }
       }
     }
