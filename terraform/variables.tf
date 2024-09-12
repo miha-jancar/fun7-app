@@ -3,6 +3,11 @@ variable "project_id" {
   type        = string
 }
 
+variable "api_key" {
+  description = "Api key to access the app."
+  type        = string
+  sensitive   = true
+
 variable "region" {
   description = "The region to deploy the Cloud Run service."
   type        = string
